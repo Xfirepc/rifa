@@ -6,9 +6,11 @@ Para desplegar en un servidor, consulta la [guía de producción](docs/PRODUCTIO
 
 ## Iniciar con Docker
 
-1. Ejecuta `cp .env.example .env` y define una contraseña larga para `POSTGRES_PASSWORD` y dos PIN distintos de exactamente seis dígitos en `ADMIN_PIN` y `SELLER_PIN`. Para un dominio público, escribe `SITE_ADDRESS=rifa.tudominio.com`; apunta su DNS al servidor y abre los puertos 80 y 443. Para probar localmente, conserva `SITE_ADDRESS=:80`.
+1. Ejecuta `cp .env.example .env` y define una contraseña larga para `POSTGRES_PASSWORD` y dos PIN distintos de exactamente seis dígitos en `ADMIN_PIN` y `SELLER_PIN`. El puerto público se configura con `HTTP_PORT=3008`. Para probar localmente, conserva `SITE_ADDRESS=:80`, que es el puerto interno de Caddy. Para HTTPS público directo, escribe `SITE_ADDRESS=rifa.tudominio.com`, `HTTP_PORT=80` y `HTTPS_PORT=443`; apunta su DNS al servidor y abre esos puertos.
 2. Ejecuta `docker compose up -d --build`.
-3. Abre la dirección del servidor. Las migraciones crean la rifa y los números del 1 al 1000 automáticamente.
+3. Abre `http://localhost:3008` o la dirección del servidor con el puerto configurado. Las migraciones crean la rifa y los números del 1 al 1000 automáticamente.
+
+Para cambiar el puerto, edita `HTTP_PORT` en `.env` y ejecuta `docker compose up -d`. La URL local de retorno de Google de la plantilla sigue ese valor; añade también la nueva URL exacta a las URI autorizadas del cliente OAuth.
 
 La página inicial pide un PIN para vendedores o administración. Los vendedores se registran con un nombre y reciben 50 boletos de cupo; pueden seleccionar cualquier número disponible. El administrador gestiona vendedores, precios corregidos, participantes y premios. El sorteo público está en `/live` y los enlaces de participantes se crean al registrar sus boletos.
 
@@ -59,7 +61,7 @@ La copia es unidireccional: PostgreSQL → Google Sheets. La hoja contiene **Ven
 
 1. Crea una hoja privada en tu cuenta de Google y copia el identificador de su URL en `GOOGLE_SHEETS_ID`. El proceso crea las dos pestañas si faltan.
 2. En [Google Cloud](https://console.cloud.google.com/apis/credentials), usa tu cliente OAuth de tipo **Aplicación web** y habilita **Google Sheets API** en su proyecto. Conserva las URLs de otras aplicaciones que utilicen ese cliente.
-3. Añade una URI de redirección autorizada que termine en `/api/admin/sheets/oauth/callback`. Para probar localmente: `http://localhost/api/admin/sheets/oauth/callback`. Para un dominio público: `https://rifa.tudominio.com/api/admin/sheets/oauth/callback`. La URI debe coincidir exactamente con `GOOGLE_OAUTH_REDIRECT_URI`.
+3. Añade una URI de redirección autorizada que termine en `/api/admin/sheets/oauth/callback`. Para probar localmente con el puerto predeterminado: `http://localhost:3008/api/admin/sheets/oauth/callback`. Para un dominio público: `https://rifa.tudominio.com/api/admin/sheets/oauth/callback`. La URI debe coincidir exactamente con `GOOGLE_OAUTH_REDIRECT_URI`.
 4. Configura `.env` con `GOOGLE_AUTH_MODE=oauth`, `GOOGLE_SHEETS_ENABLED=true`, `COMPOSE_PROFILES=sheets`, `GOOGLE_SHEETS_ID`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REDIRECT_URI`.
 5. Genera `GOOGLE_TOKEN_KEY` una sola vez con `openssl rand -hex 32` y guarda ese valor de 64 caracteres en `.env`. Protege y respalda `.env`: esta clave permite descifrar la autorización guardada en PostgreSQL. Si se pierde o cambia, habrá que conectar Google nuevamente.
 6. Ejecuta `docker compose up -d --build` y entra con el PIN de administración. Abre **Google Sheets → Conectar Google**, elige la cuenta propietaria de la hoja y autoriza el permiso de Sheets. Volverás al panel y comenzará la primera copia.

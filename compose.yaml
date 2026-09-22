@@ -4,7 +4,7 @@ x-google-environment: &google-environment
   GOOGLE_AUTH_MODE: ${GOOGLE_AUTH_MODE:-oauth}
   GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
   GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
-  GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost/api/admin/sheets/oauth/callback}
+  GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:${HTTP_PORT:-3008}/api/admin/sheets/oauth/callback}
   GOOGLE_TOKEN_KEY: ${GOOGLE_TOKEN_KEY:-}
 
 services:
@@ -54,7 +54,7 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
-      - "${HTTP_PORT:-80}:80"
+      - "${HTTP_PORT:-3008}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

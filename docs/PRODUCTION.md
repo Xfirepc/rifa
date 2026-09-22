@@ -4,6 +4,8 @@ El stack contiene Next.js, PostgreSQL, Caddy y el sincronizador de Sheets. El se
 
 Usa un dominio o subdominio, por ejemplo `rifa.tudominio.com`, con su registro DNS A apuntando al servidor. Si publicas un registro AAAA, debe apuntar también a una dirección IPv6 operativa. Los puertos TCP 80 y 443 deben llegar a Caddy y estar libres en el servidor. Esta guía supone que este stack recibe directamente el tráfico del dominio.
 
+El puerto HTTP predeterminado del proyecto es `3008`, configurable con `HTTP_PORT` en `.env`. La configuración de producción de esta guía lo cambia explícitamente a `80` para recibir el tráfico público y emitir certificados con Caddy. Si mantienes `3008`, el tráfico público de los puertos necesarios debe reenviarse a Caddy según la configuración de tu red.
+
 Caddy obtiene y renueva el certificado HTTPS cuando el dominio y los puertos están configurados. PostgreSQL y Next.js no publican puertos al exterior. [Requisitos de HTTPS automático de Caddy](https://caddyserver.com/docs/automatic-https#overview).
 
 ## 1. Descargar el proyecto
@@ -35,6 +37,8 @@ Completa estas variables. Los valores entre `<...>` son instrucciones y deben su
 ```dotenv
 COMPOSE_PROJECT_NAME=rifa
 SITE_ADDRESS=rifa.tudominio.com
+HTTP_PORT=80
+HTTPS_PORT=443
 POSTGRES_PASSWORD='<contraseña aleatoria larga>'
 ADMIN_PIN='<seis dígitos>'
 SELLER_PIN='<otros seis dígitos>'
@@ -124,7 +128,7 @@ docker compose exec -T db pg_dump -U rifa -d rifa -Fc > backups/rifa.dump
 docker compose cp app:/app/uploads/. ./backups/premios
 ```
 
-Transfiere `.env`, `backups/rifa.dump` y `backups/premios/` al servidor mediante SSH/SCP. Conserva `GOOGLE_TOKEN_KEY`, el cliente OAuth y la contraseña de la base de datos. Cambia `SITE_ADDRESS` y `GOOGLE_OAUTH_REDIRECT_URI` para el dominio público, y añade esa URI en Google Cloud.
+Transfiere `.env`, `backups/rifa.dump` y `backups/premios/` al servidor mediante SSH/SCP. Conserva `GOOGLE_TOKEN_KEY`, el cliente OAuth y la contraseña de la base de datos. Cambia `SITE_ADDRESS` y `GOOGLE_OAUTH_REDIRECT_URI` para el dominio público; para el acceso HTTPS directo de esta guía, configura también `HTTP_PORT=80` y `HTTPS_PORT=443`. Añade la URI pública en Google Cloud.
 
 No vuelvas a iniciar el sincronizador de origen contra la misma hoja cuando producción tome el control: cada instancia reemplaza la copia completa y podrían sobrescribirse. Para pruebas simultáneas usa otra hoja o deja detenido `sheets-sync` local.
 
