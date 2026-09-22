@@ -1,0 +1,1 @@
+ALTER TABLE "sales" ADD COLUMN "payload_hash" text NOT NULL;

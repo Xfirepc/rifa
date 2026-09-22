@@ -1,0 +1,23 @@
+node_modules
+.next
+.env
+.env.local
+uploads
+coverage
+*.tsbuildinfo
+
+secrets.json
+secrets/
+backups/
+.env.*
+!.env.example
+
+# Credenciales descargadas y respaldos generados fuera de sus carpetas habituales.
+client_secret*.json
+credentials*.json
+service-account*.json
+*.pem
+*.key
+*.dump
+*.backup
+premios-respaldo/

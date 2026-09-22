@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790095963293,
+      "tag": "0000_previous_masked_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790096063225,
+      "tag": "0001_blue_tyrannus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790106183088,
+      "tag": "0002_common_mephisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790106774332,
+      "tag": "0003_productive_wallow",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "rifa-familiar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test": "node --experimental-strip-types --test tests/unit.test.mjs tests/sheets.unit.test.mjs",
+    "test:integration": "node --test tests/integration.test.mjs",
+    "test:ui": "node --test tests/ui.test.mjs",
+    "test:sheets": "node --test tests/sheets.integration.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.2.8",
+    "drizzle-orm": "^0.45.3",
+    "google-auth-library": "^11.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "16.3.6",
+    "pg": "^8.16.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "^0.31.9",
+    "playwright-core": "^1.63.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.0"
+  }
+}
