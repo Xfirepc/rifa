@@ -1,12 +1,30 @@
 # Poner Mi Rifa en producción
 
-El stack contiene Next.js, PostgreSQL, Caddy y el sincronizador de Sheets. El servidor necesita Docker Engine con Docker Compose v2 o posterior, Git y acceso al repositorio. Un punto de partida razonable es 2 vCPU y 4 GB de RAM, especialmente si compilas la imagen en el mismo servidor; es una orientación, no una capacidad medida bajo carga.
+Usa `compose.prod.yaml` para ejecutar Next.js, PostgreSQL y el sincronizador opcional de Sheets detrás de tu proxy reverso en la máquina host. Publica únicamente `127.0.0.1:3008` de forma predeterminada; no levanta Caddy ni ocupa los puertos 80/443.
 
-Usa un dominio o subdominio, por ejemplo `rifa.tudominio.com`, con su registro DNS A apuntando al servidor. Si publicas un registro AAAA, debe apuntar también a una dirección IPv6 operativa. Los puertos TCP 80 y 443 deben llegar a Caddy y estar libres en el servidor. Esta guía supone que este stack recibe directamente el tráfico del dominio.
+Necesitas Docker Engine con Docker Compose v2 o posterior, Git y acceso al repositorio. El dominio y el certificado HTTPS los configuras en tu proxy del host. La aplicación puede arrancar antes de configurar el dominio.
 
-El puerto HTTP predeterminado del proyecto es `3008`, configurable con `HTTP_PORT` en `.env`. La configuración de producción de esta guía lo cambia explícitamente a `80` para recibir el tráfico público y emitir certificados con Caddy. Si mantienes `3008`, el tráfico público de los puertos necesarios debe reenviarse a Caddy según la configuración de tu red.
+## Cambiar desde el stack anterior sin perder datos
 
-Caddy obtiene y renueva el certificado HTTPS cuando el dominio y los puertos están configurados. PostgreSQL y Next.js no publican puertos al exterior. [Requisitos de HTTPS automático de Caddy](https://caddyserver.com/docs/automatic-https#overview).
+El error `failed to bind host port ...:443` corresponde al servicio `web` de Caddy. Desde la misma carpeta y conservando el mismo nombre de proyecto que ya utilizabas:
+
+```bash
+git pull --ff-only origin master
+docker compose -f compose.yaml stop web
+docker compose -f compose.prod.yaml up -d --build --remove-orphans
+```
+
+`stop web` detiene únicamente el Caddy de este proyecto. `--remove-orphans` retira ese contenedor al usar el nuevo archivo. Los nombres `postgres_data` y `prize_uploads` se mantienen, por lo que se reutilizan los datos del proyecto actual. No uses `down -v` ni cambies `COMPOSE_PROJECT_NAME` durante esta transición.
+
+Deja también en tu `.env`:
+
+```dotenv
+COMPOSE_FILE=compose.prod.yaml
+HTTP_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=3008
+```
+
+Así los siguientes comandos `docker compose` sin `-f` usarán el archivo de producción. No combines `compose.yaml` y `compose.prod.yaml` como archivos superpuestos: el segundo ya reutiliza los servicios necesarios mediante `extends`.
 
 ## 1. Descargar el proyecto
 
@@ -36,9 +54,9 @@ Completa estas variables. Los valores entre `<...>` son instrucciones y deben su
 
 ```dotenv
 COMPOSE_PROJECT_NAME=rifa
-SITE_ADDRESS=rifa.tudominio.com
-HTTP_PORT=80
-HTTPS_PORT=443
+COMPOSE_FILE=compose.prod.yaml
+HTTP_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=3008
 POSTGRES_PASSWORD='<contraseña aleatoria larga>'
 ADMIN_PIN='<seis dígitos>'
 SELLER_PIN='<otros seis dígitos>'
@@ -53,7 +71,7 @@ GOOGLE_OAUTH_REDIRECT_URI=https://rifa.tudominio.com/api/admin/sheets/oauth/call
 GOOGLE_TOKEN_KEY='<64 caracteres hexadecimales>'
 ```
 
-- `SITE_ADDRESS` es el dominio, sin ruta ni prefijo `http://`.
+- El servicio HTTP queda disponible en `http://127.0.0.1:3008` para el proxy del host. `SITE_ADDRESS` y `HTTPS_PORT` no intervienen en este Compose.
 - Los dos PIN deben ser distintos y contener exactamente seis dígitos; pueden comenzar con cero.
 - Para generar una contraseña de PostgreSQL, usa `openssl rand -hex 32`. Ejecuta el comando otra vez para generar una **clave diferente** para `GOOGLE_TOKEN_KEY`. Esa segunda clave se genera una sola vez por instalación y se conserva en actualizaciones y restauraciones.
 - Las comillas simples en `.env` preservan caracteres literales, incluido `$`; no ejecutes `.env` como un script de shell.
@@ -79,22 +97,42 @@ No necesitas registrar cuentas de Google para los vendedores. Solo el administra
 ## 4. Arrancar
 
 ```bash
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
+docker compose -f compose.prod.yaml config --quiet
+docker compose -f compose.prod.yaml up -d --build
+docker compose -f compose.prod.yaml ps
+curl --fail http://127.0.0.1:3008/api/public/draw
 ```
 
-Las migraciones se ejecutan al arrancar `app`. Espera a que `db` y `app` aparezcan como `healthy`. `web` y `sheets-sync` deben estar en ejecución; si no habilitaste Sheets, el sincronizador no se inicia.
+Las migraciones se ejecutan al arrancar `app`. Espera a que `db` y `app` aparezcan como `healthy`. Si habilitaste Sheets, `sheets-sync` debe estar en ejecución. No hay servicio `web` en este archivo.
 
-Abre `https://rifa.tudominio.com`, ingresa con el PIN de administrador y ve a **Google Sheets → Conectar Google**. Elige una cuenta con permiso de edición sobre la hoja y acepta el permiso. El panel mostrará la fecha de la primera copia cuando se complete. El ID y el Client Secret por sí solos no sustituyen este consentimiento inicial.
+Cuando tu proxy y dominio estén configurados, abre `https://rifa.tudominio.com`, ingresa con el PIN de administrador y ve a **Google Sheets → Conectar Google**. Elige una cuenta con permiso de edición sobre la hoja y acepta el permiso. El panel mostrará la fecha de la primera copia cuando se complete. El ID y el Client Secret por sí solos no sustituyen este consentimiento inicial.
 
 Si algo falla:
 
 ```bash
-docker compose logs --tail=100 app web sheets-sync
+docker compose -f compose.prod.yaml logs --tail=100 app sheets-sync
 ```
 
 No pegues la salida de `docker compose config` sin `--quiet`: puede mostrar las variables privadas. Los miembros con acceso al servidor o a Docker pueden leer las variables de los contenedores.
+
+## Conectar tu proxy reverso del host
+
+El upstream es `http://127.0.0.1:3008`. Conserva el host público y comunica el protocolo externo; reemplaza la cabecera de IP para que el límite de intentos de PIN reciba la dirección real del cliente. Ejemplo del bloque de reenvío en Nginx, dentro de tu servidor ya configurado con dominio y HTTPS:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3008;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    client_max_body_size 6m;
+}
+```
+
+`X-Forwarded-Proto: https` permite que la aplicación marque sus cookies como seguras. `Host` y `X-Forwarded-Host` deben coincidir con el dominio del navegador para las solicitudes del panel. Sobrescribe `X-Forwarded-For` en el proxy de entrada; no preserves un valor arbitrario enviado por el visitante. [Cabeceras del proxy en Nginx](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header).
+
+No necesitas publicar el puerto 3008 en Internet: el proxy del host lo alcanza por loopback. Cuando el dominio esté listo, cambia `GOOGLE_OAUTH_REDIRECT_URI` a su URL HTTPS, añádela en Google Cloud y ejecuta de nuevo `docker compose -f compose.prod.yaml up -d`.
 
 ## Qué ocurre con los secretos
 
@@ -118,17 +156,17 @@ No ejecutes la instalación nueva completa antes de restaurar: estos pasos parte
 
 ### En la instalación de origen
 
-Detén las ventas y el sincronizador para obtener un respaldo consistente entre datos e imágenes. Mantén PostgreSQL encendido:
+Detén las ventas y el sincronizador para obtener un respaldo consistente entre datos e imágenes. Si el origen usa Caddy, detén también su servicio `web` con `docker compose -f compose.yaml stop web`. Mantén PostgreSQL encendido:
 
 ```bash
-docker compose stop web app sheets-sync
+docker compose stop app sheets-sync
 umask 077
 mkdir -p backups
 docker compose exec -T db pg_dump -U rifa -d rifa -Fc > backups/rifa.dump
 docker compose cp app:/app/uploads/. ./backups/premios
 ```
 
-Transfiere `.env`, `backups/rifa.dump` y `backups/premios/` al servidor mediante SSH/SCP. Conserva `GOOGLE_TOKEN_KEY`, el cliente OAuth y la contraseña de la base de datos. Cambia `SITE_ADDRESS` y `GOOGLE_OAUTH_REDIRECT_URI` para el dominio público; para el acceso HTTPS directo de esta guía, configura también `HTTP_PORT=80` y `HTTPS_PORT=443`. Añade la URI pública en Google Cloud.
+Transfiere `.env`, `backups/rifa.dump` y `backups/premios/` al servidor mediante SSH/SCP. Conserva `GOOGLE_TOKEN_KEY`, el cliente OAuth y la contraseña de la base de datos. Selecciona `COMPOSE_FILE=compose.prod.yaml`, conserva `HTTP_BIND_ADDRESS=127.0.0.1` y `HTTP_PORT=3008`, y cambia `GOOGLE_OAUTH_REDIRECT_URI` para el dominio público. Añade la URI pública en Google Cloud.
 
 No vuelvas a iniciar el sincronizador de origen contra la misma hoja cuando producción tome el control: cada instancia reemplaza la copia completa y podrían sobrescribirse. Para pruebas simultáneas usa otra hoja o deja detenido `sheets-sync` local.
 
@@ -148,7 +186,7 @@ Espera a que PostgreSQL esté `healthy`. Restaura únicamente en la base de dest
 docker compose exec -T db pg_restore -U rifa -d rifa --no-owner --no-privileges --exit-on-error < backups/rifa.dump
 docker compose up -d --build app
 docker compose cp ./backups/premios/. app:/app/uploads
-docker compose up -d web sheets-sync
+docker compose up -d
 docker compose ps
 ```
 
@@ -160,7 +198,7 @@ Antes de actualizar, guarda la base, las imágenes y una copia protegida de `.en
 
 ```bash
 git pull --ff-only origin master
-docker compose up -d --build
+docker compose -f compose.prod.yaml up -d --build
 docker compose ps
 ```
 

@@ -1,0 +1,24 @@
+# Producción detrás de un proxy reverso administrado en el host.
+# Usar este archivo por separado, no combinarlo con -f compose.yaml.
+services:
+  db:
+    extends:
+      file: compose.yaml
+      service: db
+
+  app:
+    extends:
+      file: compose.yaml
+      service: app
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3008}:3000"
+
+  sheets-sync:
+    extends:
+      file: compose.yaml
+      service: sheets-sync
+
+# Mismos nombres que en compose.yaml para conservar los datos al cambiar de archivo.
+volumes:
+  postgres_data:
+  prize_uploads:

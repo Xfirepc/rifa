@@ -6,11 +6,14 @@ Para desplegar en un servidor, consulta la [guía de producción](docs/PRODUCTIO
 
 ## Iniciar con Docker
 
-1. Ejecuta `cp .env.example .env` y define una contraseña larga para `POSTGRES_PASSWORD` y dos PIN distintos de exactamente seis dígitos en `ADMIN_PIN` y `SELLER_PIN`. El puerto público se configura con `HTTP_PORT=3008`. Para probar localmente, conserva `SITE_ADDRESS=:80`, que es el puerto interno de Caddy. Para HTTPS público directo, escribe `SITE_ADDRESS=rifa.tudominio.com`, `HTTP_PORT=80` y `HTTPS_PORT=443`; apunta su DNS al servidor y abre esos puertos.
-2. Ejecuta `docker compose up -d --build`.
-3. Abre `http://localhost:3008` o la dirección del servidor con el puerto configurado. Las migraciones crean la rifa y los números del 1 al 1000 automáticamente.
+1. Ejecuta `cp .env.example .env` y define `POSTGRES_PASSWORD`, `ADMIN_PIN` y `SELLER_PIN`. Los dos PIN deben ser distintos y tener exactamente seis dígitos.
+2. La plantilla selecciona `COMPOSE_FILE=compose.prod.yaml`, con `HTTP_BIND_ADDRESS=127.0.0.1` y `HTTP_PORT=3008`. Este stack levanta la aplicación, PostgreSQL y, si lo habilitas, el sincronizador de Sheets.
+3. Ejecuta `docker compose -f compose.prod.yaml up -d --build`.
+4. Comprueba desde el host `http://127.0.0.1:3008`. Tu proxy reverso puede apuntar a esa dirección y encargarse del dominio y HTTPS; este Compose no usa los puertos 80/443.
 
-Para cambiar el puerto, edita `HTTP_PORT` en `.env` y ejecuta `docker compose up -d`. La URL local de retorno de Google de la plantilla sigue ese valor; añade también la nueva URL exacta a las URI autorizadas del cliente OAuth.
+Para cambiar el puerto, edita `HTTP_PORT` en `.env` y vuelve a ejecutar el comando. Para producción, configura `GOOGLE_OAUTH_REDIRECT_URI` con la URL HTTPS pública cuando tengas el dominio. La [guía de producción](docs/PRODUCTION.md) explica cómo cambiar desde el stack anterior conservando los volúmenes.
+
+El archivo `compose.yaml` conserva la variante opcional con Caddy; selecciónalo explícitamente solo si quieres que este proyecto gestione HTTPS. Para el proxy del host utiliza únicamente `-f compose.prod.yaml`, sin combinar ambos archivos con dos opciones `-f`.
 
 La página inicial pide un PIN para vendedores o administración. Los vendedores se registran con un nombre y reciben 50 boletos de cupo; pueden seleccionar cualquier número disponible. El administrador gestiona vendedores, precios corregidos, participantes y premios. El sorteo público está en `/live` y los enlaces de participantes se crean al registrar sus boletos.
 
@@ -24,7 +27,7 @@ Las pantallas públicas consultan el resultado cada segundo. Los números se rev
 
 ## Datos y mantenimiento
 
-PostgreSQL, imágenes de premios y certificados de Caddy tienen volúmenes persistentes de Docker. `docker compose down` conserva esos volúmenes; **`docker compose down -v` los borra**. Antes de actualizar, guarda la base de datos y las imágenes:
+PostgreSQL y las imágenes de premios tienen volúmenes persistentes de Docker. La variante con Caddy conserva además sus certificados en volúmenes propios. `docker compose down` conserva esos volúmenes; **`docker compose down -v` los borra**. Antes de actualizar, guarda la base de datos y las imágenes:
 
 ```bash
 umask 077
@@ -36,14 +39,14 @@ docker compose cp app:/app/uploads/. ./backups/premios-respaldo
 Para restaurar en la misma instalación, detén la aplicación, restaura la base de datos y copia las imágenes antes de abrir el sitio:
 
 ```bash
-docker compose stop web app sheets-sync
+docker compose stop app sheets-sync
 docker compose exec -T db pg_restore -U rifa -d rifa --clean --if-exists < backups/rifa-backup.dump
 docker compose up -d app
 docker compose cp ./backups/premios-respaldo/. app:/app/uploads
-docker compose up -d web sheets-sync
+docker compose up -d
 ```
 
-Para actualizar el código, ejecuta `docker compose up -d --build`; las migraciones pendientes se aplican al arrancar la aplicación. Puedes ver el estado con `docker compose ps` y los registros con `docker compose logs -f app`.
+Para actualizar el código en producción, ejecuta `docker compose -f compose.prod.yaml up -d --build`; las migraciones pendientes se aplican al arrancar la aplicación. Puedes ver el estado con `docker compose ps` y los registros con `docker compose logs -f app`.
 
 ## Desarrollo
 
@@ -64,7 +67,7 @@ La copia es unidireccional: PostgreSQL → Google Sheets. La hoja contiene **Ven
 3. Añade una URI de redirección autorizada que termine en `/api/admin/sheets/oauth/callback`. Para probar localmente con el puerto predeterminado: `http://localhost:3008/api/admin/sheets/oauth/callback`. Para un dominio público: `https://rifa.tudominio.com/api/admin/sheets/oauth/callback`. La URI debe coincidir exactamente con `GOOGLE_OAUTH_REDIRECT_URI`.
 4. Configura `.env` con `GOOGLE_AUTH_MODE=oauth`, `GOOGLE_SHEETS_ENABLED=true`, `COMPOSE_PROFILES=sheets`, `GOOGLE_SHEETS_ID`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_OAUTH_REDIRECT_URI`.
 5. Genera `GOOGLE_TOKEN_KEY` una sola vez con `openssl rand -hex 32` y guarda ese valor de 64 caracteres en `.env`. Protege y respalda `.env`: esta clave permite descifrar la autorización guardada en PostgreSQL. Si se pierde o cambia, habrá que conectar Google nuevamente.
-6. Ejecuta `docker compose up -d --build` y entra con el PIN de administración. Abre **Google Sheets → Conectar Google**, elige la cuenta propietaria de la hoja y autoriza el permiso de Sheets. Volverás al panel y comenzará la primera copia.
+6. Ejecuta `docker compose -f compose.prod.yaml up -d --build` y entra con el PIN de administración. Abre **Google Sheets → Conectar Google**, elige la cuenta propietaria de la hoja y autoriza el permiso de Sheets. Volverás al panel y comenzará la primera copia.
 
 El Client Secret permanece en el servidor. El token de renovación se guarda cifrado con AES-256-GCM. El retorno de Google verifica un estado de un solo uso, una cookie temporal, la sesión administrativa original y PKCE; el PIN de los vendedores no participa en esa conexión.
 

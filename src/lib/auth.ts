@@ -9,7 +9,8 @@ export async function loginWithPin(req: NextRequest): Promise<NextResponse> {
   const input = await readJson(req, z.object({ role: z.enum(['admin', 'seller']), pin: z.string().regex(/^[0-9]{6}$/, 'El PIN debe tener exactamente seis dígitos.') }))
   const pin = configuredPin(input.role)
   assert(pin, 503, 'Configura dos PIN distintos de seis dígitos en el servidor.')
-  // Caddy supplies this header; the app port is not exposed by Compose.
+  // The trusted reverse proxy must replace this header with the real client IP.
+  // Production binds the app to loopback so external clients cannot bypass it.
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
   const key = hashToken(`${input.role}:${ip}`)
   const client = await pool.connect()
