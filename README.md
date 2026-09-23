@@ -17,13 +17,15 @@ El archivo `compose.yaml` conserva la variante opcional con Caddy; selecciónalo
 
 La página inicial pide un PIN para vendedores o administración. Los vendedores se registran con un nombre y reciben 50 boletos de cupo; pueden seleccionar cualquier número disponible. El administrador gestiona vendedores, precios corregidos, participantes y premios. El sorteo público está en `/live` y los enlaces de participantes se crean al registrar sus boletos.
 
+Cada enlace de comprador (`/p/...`) abre una página personal sin pedir PIN, con sus números, una galería de los premios configurados en Administración y sus resultados. Las fotos se muestran completas y, si no hay imagen, aparece una ilustración de regalo. Las compras grandes permiten desplegar todos los boletos. Los enlaces ya compartidos reciben este diseño automáticamente al actualizar la aplicación.
+
 No se registran cobros. «Total vendido» es la suma de los precios asignados a boletos vigentes, no dinero recibido.
 
 ## Uso del sorteo
 
 Configura los premios y sus extracciones en Administración. En «Sorteo», pulsa «Cerrar ventas e iniciar sorteo». Desde ese momento no se pueden registrar ni corregir ventas. Pulsa «Sacar número» una vez por extracción. Las extracciones anteriores a la última eliminan esos boletos de toda la rifa. La última asigna el premio y excluye los demás boletos del ganador para los siguientes premios. Un premio pendiente puede reducir su cantidad de extracciones si quedan pocos boletos elegibles.
 
-Las pantallas públicas consultan el resultado cada segundo. Los números se revelan cuatro segundos después de seleccionarse. Una recarga no repite ni cambia la extracción.
+La pantalla del sorteo consulta el resultado cada segundo y la página del comprador cada tres segundos. Los números se revelan cuatro segundos después de seleccionarse; los premios del comprador respetan ese mismo momento de revelación. Una recarga no repite ni cambia la extracción.
 
 ## Datos y mantenimiento
 
@@ -53,6 +55,8 @@ Para actualizar el código en producción, ejecuta `docker compose -f compose.pr
 Requiere Node.js 24 y PostgreSQL 18. Define las variables `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`, `ADMIN_PIN` y `SELLER_PIN`, ejecuta `npm ci`, `npm run db:migrate` y `npm run dev`. Comprueba tipos con `npm run typecheck` y genera cambios de esquema con `npm run db:generate`.
 
 `npm test` comprueba importes, PIN, cifrado y generación de la copia de Sheets. Las pruebas de integración (`npm run test:integration`) crean ventas y completan un sorteo: ejecútalas únicamente contra una instalación de prueba recién inicializada, con `TEST_BASE_URL`, `ADMIN_PIN` y `SELLER_PIN`. `npm run test:ui` comprueba las vistas móviles con Chromium instalado, sobre una instalación de prueba que ya tenga ventas.
+
+`npm run test:participant` verifica la página del comprador en móvil y escritorio, imágenes ausentes, compras grandes, ganadores y recuperación de conexión. Usa Chromium y respuestas simuladas sin modificar la base de datos. Define `TEST_BASE_URL` para apuntar a la app en ejecución y, opcionalmente, `SCREENSHOT_DIR` para guardar capturas.
 
 El teléfono identifica a cada participante en toda la rifa. Se aceptan números internacionales como `+593991234567` y números ecuatorianos como `0991234567`. No hay verificación por SMS. Quien conoce el PIN común de vendedores puede elegir cualquier perfil; el PIN de administración debe ser distinto.
 

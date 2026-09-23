@@ -103,6 +103,7 @@ export async function getParticipantSnapshot(token: string) {
   return {
     name: person.name,
     raffle: draw.raffle,
+    prizes: draw.prizes,
     tickets: ticketsResult.rows.map(row => ({
       number: row.ticket_number,
       status: winner?.ticketNumber === row.ticket_number ? 'winner'

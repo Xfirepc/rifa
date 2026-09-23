@@ -85,6 +85,13 @@ test('ventas, exclusividad, enlaces y sorteo con PostgreSQL', { timeout: 120_000
 
   const prize1 = expectStatus(await admin.call('POST', 'admin/prizes', { title: 'Premio primero', description: 'Prueba de cinco extracciones', drawCount: 5 }), 201)
   const prize2 = expectStatus(await admin.call('POST', 'admin/prizes', { title: 'Premio segundo', drawCount: 1 }), 201)
+  const prizeImage = `/api/images/${randomUUID()}.png`
+  expectStatus(await admin.call('PATCH', `admin/prizes/${prize1.id}`, { imagePath: prizeImage }), 200)
+  const withPrizes = expectStatus(await publicClient.call('GET', `public/participant/${first.shareToken}`), 200)
+  assert.deepEqual(withPrizes.prizes.map(prize => prize.title), ['Premio primero', 'Premio segundo'])
+  assert.equal(withPrizes.prizes[0].description, 'Prueba de cinco extracciones')
+  assert.equal(withPrizes.prizes[0].imagePath, prizeImage)
+  assert.ok(withPrizes.prizes.every(prize => prize.winnerTicketNumber === null && !('winnerParticipantId' in prize)))
   expectStatus(await admin.call('POST', 'admin/start'), 200)
   expectStatus(await b.call('POST', 'sales', { requestId: randomUUID(), participant: buyer, items: [{ number: 63, priceCents: 100 }] }), 409)
   expectStatus(await admin.call('DELETE', `admin/items/${item1.id}`), 409)
@@ -98,6 +105,12 @@ test('ventas, exclusividad, enlaces y sorteo con PostgreSQL', { timeout: 120_000
     const duplicate = expectStatus(await admin.call('POST', 'admin/draw', request), 200)
     assert.equal(duplicate.extractions.length, ordinal - 1)
     assert.equal(before.extractions.length, ordinal - 1)
+    if (ordinal === 5) {
+      const unrevealed = expectStatus(await publicClient.call('GET', `public/participant/${first.shareToken}`), 200)
+      assert.equal(unrevealed.prizes[0].winnerTicketNumber, null, 'El enlace del comprador no debe anticipar el ganador')
+      assert.equal(unrevealed.prizes[0].state, 'pending')
+      assert.deepEqual(unrevealed.awards, [])
+    }
     await sleep(4200)
     const after = expectStatus(await publicClient.call('GET', 'public/draw'), 200)
     assert.equal(after.extractions.length, ordinal)
@@ -115,4 +128,7 @@ test('ventas, exclusividad, enlaces y sorteo con PostgreSQL', { timeout: 120_000
   const winners = final.extractions.filter(x => x.kind === 'winner')
   assert.equal(winners.length, 2)
   assert.equal(new Set(winners.map(x => x.participantId)).size, 2)
+  const finishedParticipant = expectStatus(await publicClient.call('GET', `public/participant/${first.shareToken}`), 200)
+  assert.deepEqual(finishedParticipant.prizes, final.prizes)
+  assert.ok(!JSON.stringify(finishedParticipant).includes('+593991234567'))
 })

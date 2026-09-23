@@ -13,6 +13,7 @@
     "test": "node --experimental-strip-types --test tests/unit.test.mjs tests/sheets.unit.test.mjs",
     "test:integration": "node --test tests/integration.test.mjs",
     "test:ui": "node --test tests/ui.test.mjs",
+    "test:participant": "node --test tests/participant.ui.test.mjs",
     "test:sheets": "node --test tests/sheets.integration.test.mjs"
   },
   "dependencies": {

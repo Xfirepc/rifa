@@ -24,6 +24,13 @@ export type DrawState = {
   pending: { prizeId: number; ordinal: number; startedAt: string; revealedAt: string } | null;
   soldCount: number; eligibleCount: number; serverNow: string;
 }
+export type ParticipantState = {
+  name: string;
+  raffle: DrawState['raffle'];
+  tickets: { number: number; status: 'active' | 'eliminated' | 'excluded' | 'winner' }[];
+  prizes: DrawState['prizes'];
+  awards: DrawState['prizes'];
+}
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/${path}`, {
